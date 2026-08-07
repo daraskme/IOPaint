@@ -35,7 +35,7 @@ Base commit: 61a759f (upstream Sanster/IOPaint, 2025-04-29). Work branch: `moder
 | uvicorn | any | `uvicorn[standard]` latest | |
 | python-socketio | ==5.7.2 | **>=5.16, <6** | protocol v5 — socket.io-client 4.x stays compatible |
 | pydantic | >=2.5.2 | >=2.9, <3 | |
-| Pillow | ==9.5.0 | **>=11, <12** | `[r2]` AnyText uses BOTH removed APIs: `font.getsize` AND `font.getoffset` (`anytext/utils.py:69`) — port both (§4.5) |
+| Pillow | ==9.5.0 | **>=12, <13** | `[r3]` rembg>=2.0.78 requires pillow>=12.1 so the extra must co-resolve; Pillow 12 is current stable. AnyText uses BOTH removed APIs: `font.getsize` AND `font.getoffset` (`anytext/utils.py:69`) — port both (§4.5) |
 | gradio | ==4.21.0 | **>=6, <7** as optional extra `[web-config]` | lazy import + clear error (§4.6) |
 | onnxruntime | <=1.19.2 (installer.py pin) | **>=1.20** | `[r2]` `iopaint/installer.py` (`install-plugins-packages` CLI path) must be updated in the same change — it currently hard-pins `onnxruntime<=1.19.2` + unbounded rembg |
 | rembg | plugin install | **>=2.0.78** | `[r2]` BiRefNet entries ALREADY exist in `schema.py:150` / `remove_bg.py` — this is a dependency/regression upgrade, not a feature add (§5.2) |
