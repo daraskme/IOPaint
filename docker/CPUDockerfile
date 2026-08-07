@@ -1,19 +1,36 @@
-FROM python:3.10.11-slim-buster
+FROM node:22-bookworm-slim AS web-builder
+
+WORKDIR /src/web_app
+COPY web_app/package.json web_app/package-lock.json ./
+RUN npm ci
+COPY web_app/ ./
+RUN npm run build
+
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common \
-    libsm6 libxext6 ffmpeg libfontconfig1 libxrender1 libgl1-mesa-glx \
-    curl gcc build-essential
+    ffmpeg \
+    libfontconfig1 \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip && \
-    pip install torch==1.13.1 torchvision==0.14.1 --extra-index-url https://download.pytorch.org/whl/cpu
+WORKDIR /opt/iopaint
+COPY . .
+RUN rm -rf iopaint/web_app && mkdir -p iopaint/web_app
+COPY --from=web-builder /src/web_app/dist/ ./iopaint/web_app/
 
-ARG version
-
-RUN pip install lama-cleaner==$version
-RUN lama-cleaner --install-plugins-package
-ENV LD_PRELOAD=/usr/local/lib/python3.10/site-packages/skimage/_shared/../../scikit_image.libs/libgomp-d22c30c5.so.1.0.0
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir torch torchvision \
+      --index-url https://download.pytorch.org/whl/cpu \
+    && python -m pip install --no-cache-dir .
 
 EXPOSE 8080
 
-CMD ["bash"]
+ENTRYPOINT ["iopaint", "start", "--host", "0.0.0.0"]
+CMD ["--device", "cpu", "--port", "8080"]

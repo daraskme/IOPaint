@@ -1,0 +1,129 @@
+# PyPI Trusted Publishing setup (owner action required before the first release):
+# - Decide the final distribution name and create/reserve that project on PyPI.
+# - In the PyPI project's Publishing settings, add a GitHub publisher with:
+#     owner=<GITHUB_OWNER>, repository=<GITHUB_REPOSITORY>, workflow=release.yml,
+#     environment=pypi
+# - Create a protected GitHub environment named "pypi". No API token is needed.
+# - Dry-run v2.0.0-rc1 against TestPyPI first. Configure the same publisher tuple
+#   on test.pypi.org with environment=testpypi, then enable the commented job below.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web_app/package-lock.json
+
+      - name: Build frontend
+        working-directory: web_app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Stage embedded frontend
+        run: |
+          rm -rf iopaint/web_app
+          cp -R web_app/dist iopaint/web_app
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel and sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Verify packaged assets
+        run: python scripts/check_package_contents.py dist
+
+      - name: Smoke-test wheel in a fresh environment
+        run: |
+          python -m venv .release-venv
+          .release-venv/bin/python -m pip install --upgrade pip
+          .release-venv/bin/python -m pip install torch torchvision \
+            --index-url https://download.pytorch.org/whl/cpu
+          .release-venv/bin/python -m pip install dist/*.whl
+          .release-venv/bin/iopaint --help
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/*
+          if-no-files-found: error
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist
+
+      - name: Publish with PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist
+
+      - name: Create release and attach distributions
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          fail_on_unmatched_files: true
+
+  # TestPyPI dry-run variant. Configure the "testpypi" trusted publisher first,
+  # temporarily disable publish-pypi for the RC tag, then uncomment this job:
+  # publish-testpypi:
+  #   name: Publish to TestPyPI
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   environment: testpypi
+  #   permissions:
+  #     id-token: write
+  #   steps:
+  #     - uses: actions/download-artifact@v4
+  #       with:
+  #         name: python-distributions
+  #         path: dist
+  #     - uses: pypa/gh-action-pypi-publish@release/v1
+  #       with:
+  #         repository-url: https://test.pypi.org/legacy/

@@ -1,0 +1,13 @@
+.git
+.github
+.pytest_cache
+.venv*
+build
+dist
+*.egg-info
+**/__pycache__
+**/*.pyc
+web_app/node_modules
+web_app/dist
+iopaint/web_app
+iopaint/tests/result

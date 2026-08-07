@@ -9,11 +9,36 @@ from loguru import logger
 from typer import Option
 from typer_config import use_json_config
 
+from iopaint import __version__
 from iopaint.const import *
 from iopaint.runtime import setup_model_dir, dump_environment_info, check_device
 from iopaint.schema import InteractiveSegModel, Device, RealESRGANModel, RemoveBGModel
 
-typer_app = typer.Typer(pretty_exceptions_show_locals=False, add_completion=False)
+
+def _version_callback(value: bool):
+    if value:
+        typer.echo(__version__)
+        raise typer.Exit()
+
+
+typer_app = typer.Typer(
+    pretty_exceptions_show_locals=False,
+    add_completion=False,
+    no_args_is_help=True,
+)
+
+
+@typer_app.callback()
+def main(
+    version: bool = Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the IOPaint version and exit.",
+    ),
+):
+    pass
 
 
 @typer_app.command(help="Install all plugins dependencies")

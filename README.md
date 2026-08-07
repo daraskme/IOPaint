@@ -1,138 +1,222 @@
-<h1 align="center">IOPaint</h1>
-<p align="center">A free and open-source inpainting & outpainting tool powered by SOTA AI model.</p>
+<h1 align="center">IOPaint — modernized fork</h1>
+<p align="center">Self-hosted image inpainting, outpainting, object removal, and AI-assisted image editing.</p>
 
 <p align="center">
-  <a href="https://github.com/Sanster/IOPaint">
-    <img alt="total download" src="https://pepy.tech/badge/iopaint" />
-  </a>
-  <a href="https://pypi.org/project/iopaint">
-    <img alt="version" src="https://img.shields.io/pypi/v/iopaint" />
-  </a>
-  <a href="">
-    <img alt="python version" src="https://img.shields.io/pypi/pyversions/iopaint" />
-  </a>
-  <a href="https://huggingface.co/spaces/Sanster/iopaint-lama">
-    <img alt="HuggingFace Spaces" src="https://img.shields.io/badge/%F0%9F%A4%97%20HuggingFace-Spaces-blue" />
-  </a>
-  <a href="https://colab.research.google.com/drive/1TKVlDZiE3MIZnAUMpv2t_S4hLr6TUY1d?usp=sharing">
-    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" />
-  </a>
+  <img alt="Python 3.10–3.13" src="https://img.shields.io/badge/Python-3.10--3.13-blue" />
+  <img alt="Apache-2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-blue" />
 </p>
 
-|Erase([LaMa](https://www.iopaint.com/models/erase/lama))|Replace Object([PowerPaint](https://www.iopaint.com/models/diffusion/powerpaint))|
-|-----|----|
-|<video src="https://github.com/Sanster/IOPaint/assets/3998421/264bc27c-0abd-4d8b-bb1e-0078ab264c4a">  | <video src="https://github.com/Sanster/IOPaint/assets/3998421/1de5c288-e0e1-4f32-926d-796df0655846">|
+This project is based on [Sanster/IOPaint](https://github.com/Sanster/IOPaint). The original project, model integrations, interface, and years of community work made this fork possible. This fork keeps the existing IOPaint workflow and model lineup while modernizing its Python, PyTorch, Hugging Face, frontend, packaging, and deployment stack for 2026.
 
-|Draw Text([AnyText](https://www.iopaint.com/models/diffusion/anytext))|Out-painting([PowerPaint](https://www.iopaint.com/models/diffusion/powerpaint))|
-|---------|-----------|
-|<video src="https://github.com/Sanster/IOPaint/assets/3998421/ffd4eda4-f7d4-4693-93d8-d2cd5aa7c6d6">|<video src="https://github.com/Sanster/IOPaint/assets/3998421/c4af8aef-8c29-49e0-96eb-0aae2f768da2">|
+> **Distribution-name placeholder:** `iopaint-ng` is intentionally temporary. The owner must choose the final PyPI name before the first publish. The installed command remains `iopaint`.
 
+| Input | Result |
+|---|---|
+| ![Object to remove](assets/unwant_object.jpg) | ![Object removed](assets/unwant_object_clean.jpg) |
+| ![Text to remove](assets/unwant_text.jpg) | ![Text removed](assets/unwant_text_clean.jpg) |
 
-## Features
+## Requirements
 
-- Completely free and open-source, fully self-hosted, support CPU & GPU & Apple Silicon
-- [Windows 1-Click Installer](https://www.iopaint.com/install/windows_1click_installer)
-- [OptiClean](https://apps.apple.com/ca/app/opticlean/id6452387177): macOS & iOS App for object erase
-- Supports various AI [models](https://www.iopaint.com/models) to perform erase, inpainting or outpainting task.
-  - [Erase models](https://www.iopaint.com/models#erase-models): These models can be used to remove unwanted object, defect, watermarks, people from image.
-  - Diffusion models: These models can be used to replace objects or perform outpainting. Some popular used models include:
-    - [runwayml/stable-diffusion-inpainting](https://huggingface.co/runwayml/stable-diffusion-inpainting)
-    - [diffusers/stable-diffusion-xl-1.0-inpainting-0.1](https://huggingface.co/diffusers/stable-diffusion-xl-1.0-inpainting-0.1)
-    - [andregn/Realistic_Vision_V3.0-inpainting](https://huggingface.co/andregn/Realistic_Vision_V3.0-inpainting)
-    - [Lykon/dreamshaper-8-inpainting](https://huggingface.co/Lykon/dreamshaper-8-inpainting)
-    - [Sanster/anything-4.0-inpainting](https://huggingface.co/Sanster/anything-4.0-inpainting)
-    - [BrushNet](https://www.iopaint.com/models/diffusion/brushnet)
-    - [PowerPaintV2](https://www.iopaint.com/models/diffusion/powerpaint_v2)
-    - [Sanster/AnyText](https://huggingface.co/Sanster/AnyText)
-    - [Fantasy-Studio/Paint-by-Example](https://huggingface.co/Fantasy-Studio/Paint-by-Example)
+- Python `>=3.10,<3.14`
+- PyTorch `>=2.4`
+- CPU, NVIDIA CUDA, and Apple Silicon are supported where the selected model supports that device.
+- Recent NVIDIA GPUs, including Blackwell, require a PyTorch CUDA 12.8-or-newer build.
 
-- [Plugins](https://www.iopaint.com/plugins):
-  - [Segment Anything](https://iopaint.com/plugins/interactive_seg): Accurate and fast Interactive Object Segmentation
-  - [RemoveBG](https://iopaint.com/plugins/rembg): Remove image background or generate masks for foreground objects
-  - [Anime Segmentation](https://iopaint.com/plugins/anime_seg): Similar to RemoveBG, the model is specifically trained for anime images.
-  - [RealESRGAN](https://iopaint.com/plugins/RealESRGAN): Super Resolution
-  - [GFPGAN](https://iopaint.com/plugins/GFPGAN): Face Restoration
-  - [RestoreFormer](https://iopaint.com/plugins/RestoreFormer): Face Restoration
-- [FileManager](https://iopaint.com/file_manager): Browse your pictures conveniently and save them directly to the output directory.
+Models are downloaded on first use. Use `--model-dir` to choose the cache location or `--local-files-only` after the required weights have been cached.
 
+## Installation
 
-## Quick Start
+### uv — recommended
 
-### Start webui
-
-IOPaint provides a convenient webui for using the latest AI models to edit your images.
-You can install and start IOPaint easily by running following command:
+Install [uv](https://docs.astral.sh/uv/), then create an environment and let uv select the PyTorch backend:
 
 ```bash
-# In order to use GPU, install cuda version of pytorch first.
-# pip3 install torch==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/cu118
-# AMD GPU users, please utilize the following command, only works on linux, as pytorch is not yet supported on Windows with ROCm.
-# pip3 install torch==2.1.2 torchvision==0.16.2 --index-url https://download.pytorch.org/whl/rocm5.6
-
-pip3 install iopaint
-iopaint start --model=lama --device=cpu --port=8080
+uv venv
+uv pip install torch torchvision --torch-backend=auto
+uv pip install iopaint-ng
+iopaint start --model lama --device cpu --port 8080 --inbrowser
 ```
 
-That's it, you can start using IOPaint by visiting http://localhost:8080 in your web browser.
-
-All models will be downloaded automatically at startup. If you want to change the download directory, you can add `--model-dir`. More documentation can be found [here](https://www.iopaint.com/install/download_model)
-
-You can see other supported models at [here](https://www.iopaint.com/models) and how to use local sd ckpt/safetensors file at [here](https://www.iopaint.com/models#load-ckptsafetensors).
-
-### Plugins
-
-You can specify which plugins to use when starting the service, and you can view the commands to enable plugins by using `iopaint start --help`. 
-
-More demonstrations of the Plugin can be seen [here](https://www.iopaint.com/plugins)
+For a one-shot trial:
 
 ```bash
-iopaint start --enable-interactive-seg --interactive-seg-device=cuda
+uvx --from iopaint-ng iopaint start --model lama
 ```
 
-### Batch processing
+### pip
 
-You can also use IOPaint in the command line to batch process images:
+Create and activate a virtual environment first. For NVIDIA CUDA 12.8:
 
 ```bash
-iopaint run --model=lama --device=cpu \
---image=/path/to/image_folder \
---mask=/path/to/mask_folder \
---output=output_dir
+python -m pip install torch torchvision \
+  --index-url https://download.pytorch.org/whl/cu128
+python -m pip install iopaint-ng
+iopaint start --model lama --device cuda --port 8080 --inbrowser
 ```
 
-`--image` is the folder containing input images, `--mask` is the folder containing corresponding mask images.
-When `--mask` is a path to a mask file, all images will be processed using this mask.
+For CPU-only installations, replace the PyTorch index URL with `https://download.pytorch.org/whl/cpu` and use `--device cpu`.
 
-You can see more information about the available models and plugins supported by IOPaint below.
+### Windows bootstrap
+
+From a source checkout, run:
+
+```bat
+scripts\install_windows.bat
+scripts\start_windows.bat
+```
+
+The installer installs uv if necessary, creates `.iopaint-env`, detects `nvidia-smi`, and installs either CUDA 12.8 or CPU PyTorch wheels. A detected NVIDIA system fails clearly if its driver cannot use the CUDA build; it does not silently switch to CPU. Until the package is published, the script contains a commented local-wheel `--find-links dist` alternative.
+
+### Docker
+
+Build both images from a Git checkout:
+
+```bash
+bash scripts/build_docker.sh 2.0.0
+```
+
+Run the NVIDIA image with the NVIDIA Container Toolkit:
+
+```bash
+docker run --rm --gpus all -p 8080:8080 \
+  -v iopaint-cache:/root/.cache \
+  iopaint-ng:2.0.0-cuda
+```
+
+Or run the CPU image:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -v iopaint-cache:/root/.cache \
+  iopaint-ng:2.0.0-cpu
+```
+
+Both images embed a production frontend and listen on `0.0.0.0:8080`.
+
+## Models
+
+### Erase models
+
+- `lama`
+- `ldm`
+- `zits`
+- `mat`
+- `fcf`
+- `manga`
+- `cv2`
+- `migan`
+
+### Diffusion and guided-editing models
+
+- Stable Diffusion and SDXL normal or inpainting repositories and local checkpoints
+- `runwayml/stable-diffusion-inpainting`
+- `Uminosachi/realisticVisionV51_v51VAE-inpainting`
+- `redstonehero/dreamshaper-inpainting`
+- `Sanster/anything-4.0-inpainting`
+- `diffusers/stable-diffusion-xl-1.0-inpainting-0.1`
+- `RunDiffusion/Juggernaut-XI-v11`
+- `SG161222/RealVisXL_V5.0`
+- `eienmojiki/Anything-XL`
+- BrushNet for SD and SDXL
+- PowerPaint V1 and V2
+- `Sanster/AnyText`
+- `Fantasy-Studio/Paint-by-Example`
+- Kandinsky 2.2 inpainting
+- InstructPix2Pix
+- ControlNet-assisted SD and SDXL workflows
+
+Use `iopaint start --help` for model-specific and memory-management options.
+
+## Plugins and optional dependencies
+
+Install background-removal dependencies, including current rembg/BiRefNet support, with:
+
+```bash
+uv pip install "iopaint-ng[plugins]"
+```
+
+Available plugins include interactive segmentation, RemoveBG/BiRefNet, anime segmentation, RealESRGAN, GFPGAN, and RestoreFormer. Enable them with the corresponding `iopaint start` options.
+
+The Gradio configuration UI is optional:
+
+```bash
+uv pip install "iopaint-ng[web-config]"
+iopaint start-web-config
+```
+
+## SAM3 segmentation
+
+SAM3 provides click-prompt segmentation and text-prompt concept segmentation. Its weights are gated:
+
+1. Visit [facebook/sam3](https://huggingface.co/facebook/sam3) and accept the repository license.
+2. Authenticate locally with the current Hugging Face CLI:
+
+   ```bash
+   hf auth login
+   ```
+
+3. Start IOPaint with the SAM3 interactive-segmentation plugin:
+
+   ```bash
+   iopaint start --model lama --device cuda \
+     --enable-interactive-seg \
+     --interactive-seg-model sam3 \
+     --interactive-seg-device cuda
+   ```
+
+Click prompts use the existing interactive-segmentation UI and API. Text prompts are available through `POST /api/v1/segment_by_text`; all instances above `score_threshold` are combined into one erase mask:
+
+```bash
+curl http://127.0.0.1:8080/api/v1/segment_by_text \
+  -H "Content-Type: application/json" \
+  --data-binary "{\"name\":\"InteractiveSeg\",\"image\":\"$(base64 -w0 input.png)\",\"prompt\":\"person\",\"score_threshold\":0.5}" \
+  --output mask.png
+```
+
+The text detector is loaded lazily and remains resident alongside the click tracker. There is no frontend text-prompt control yet.
+
+## Batch processing
+
+```bash
+iopaint run --model lama --device cpu \
+  --image /path/to/images \
+  --mask /path/to/masks \
+  --output /path/to/results
+```
+
+If `--mask` points to one file, that mask is applied to every input image. If it points to a directory, mask filenames must match the input filenames.
 
 ## Development
 
-Install [nodejs](https://nodejs.org/en), then install the frontend dependencies.
-
 ```bash
-git clone https://github.com/Sanster/IOPaint.git
-cd IOPaint/web_app
-npm install
+git clone <FORK_REPO_URL_PLACEHOLDER>
+cd IOpaint
+
+uv venv --python 3.12
+uv pip install torch torchvision --torch-backend=auto
+uv pip install -e ".[dev,plugins,web-config]"
+
+python -m pytest
+python -m ruff check .
+
+cd web_app
+npm ci
 npm run build
-cp -r dist/ ../iopaint/web_app
 ```
 
-Create a `.env.local` file in `web_app` and fill in the backend IP and port.
-```
-VITE_BACKEND=http://127.0.0.1:8080
-```
+For an embedded backend build, copy `web_app/dist` to `iopaint/web_app`, then run `python -m build`. `python scripts/check_package_contents.py dist` verifies the wheel and sdist assets.
 
-Start front-end development environment
-```bash
-npm run dev
-```
+## Differences from upstream
 
-Install back-end requirements and start backend service
-```bash
-pip install -r requirements.txt
-python3 main.py start --model lama --port 8080
-```
+- Python packaging is PEP 621-based and verified in wheel and sdist builds.
+- PyTorch supports modern CUDA builds; the dependency floor is PyTorch 2.4.
+- Diffusers 0.39, Transformers 5.14, Hugging Face Hub 1.x, Pillow 12, NumPy 2, FastAPI/Pydantic 2, and Gradio 6 compatibility.
+- React 19, Zustand 5, TanStack Query 5, Radix UI updates, react-zoom-pan-pinch 4, TypeScript 5.9, and Vite 8.
+- Native Transformers SAM3 click and text-prompt segmentation.
+- Current rembg with BiRefNet-family models; background-removal dependencies are optional.
+- Gradio is isolated in the `web-config` extra instead of being a mandatory runtime dependency.
+- Reproducible release, Docker, and Windows bootstrap workflows replace legacy lama-cleaner/torch-cu118 scripts.
 
-Then you can visit `http://localhost:5173/` for development.
-The frontend code will automatically update after being modified,
-but the backend needs to restart the service after modifying the python code.
+## License and credit
+
+Licensed under Apache-2.0. See [LICENSE](LICENSE). Upstream credit and history belong to [Sanster/IOPaint](https://github.com/Sanster/IOPaint); please support the original project and its contributors.
