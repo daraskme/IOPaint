@@ -10,3 +10,4 @@ dist/
 venv/
 tmp/
 iopaint/web_app/
+.claude/

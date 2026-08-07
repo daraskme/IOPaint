@@ -307,8 +307,8 @@ export default function Editor(props: EditorProps) {
     const offsetX = (windowSize.width - imageWidth * minScale) / 2
     const offsetY = (windowSize.height - imageHeight * minScale) / 2
     viewport.setTransform(offsetX, offsetY, minScale, 200, "easeOutQuad")
-    if (viewport.instance.transformState.scale) {
-      viewport.instance.transformState.scale = minScale
+    if (viewport.instance.state.scale) {
+      viewport.instance.state.scale = minScale
     }
 
     setScale(minScale)
@@ -701,8 +701,8 @@ export default function Editor(props: EditorProps) {
 
   const getCurScale = (): number => {
     let s = minScale
-    if (viewportRef.current?.instance?.transformState.scale !== undefined) {
-      s = viewportRef.current?.instance?.transformState.scale
+    if (viewportRef.current?.instance?.state.scale !== undefined) {
+      s = viewportRef.current?.instance?.state.scale
     }
     return s!
   }
@@ -764,7 +764,7 @@ export default function Editor(props: EditorProps) {
         panning={{ disabled: !isPanning, velocityDisabled: true }}
         wheel={{ step: 0.05, wheelDisabled: isChangingBrushSizeByWheel }}
         centerZoomedOut
-        alignmentAnimation={{ disabled: true }}
+        autoAlignment={{ disabled: true }}
         centerOnInit
         limitToBounds={false}
         doubleClick={{ disabled: true }}
