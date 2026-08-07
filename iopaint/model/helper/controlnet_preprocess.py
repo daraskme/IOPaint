@@ -48,10 +48,10 @@ def make_depth_control_image(image: np.ndarray) -> Image:
 
     origin_height, origin_width = image.shape[:2]
     pad_image = pad_img_to_modulo(image, mod=64, square=False, min_size=512)
-    depth_image = midas(pad_image)
+    depth_image = np.asarray(midas(pad_image, output_type="np"))
     depth_image = depth_image[0:origin_height, 0:origin_width]
-    depth_image = depth_image[:, :, None]
-    depth_image = np.concatenate([depth_image, depth_image, depth_image], axis=2)
+    if depth_image.ndim == 2:
+        depth_image = np.repeat(depth_image[:, :, None], 3, axis=2)
     control_image = PIL.Image.fromarray(depth_image)
     return control_image
 

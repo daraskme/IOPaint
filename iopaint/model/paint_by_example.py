@@ -16,12 +16,26 @@ class PaintByExample(DiffusionInpaintModel):
     min_size = 512
 
     def init_model(self, device: torch.device, **kwargs):
-        from diffusers import DiffusionPipeline
+        from diffusers import PaintByExamplePipeline, pipelines
+        from diffusers.pipelines.deprecated import paint_by_example
+        from diffusers.pipelines.deprecated.paint_by_example import (
+            PaintByExampleImageEncoder,
+        )
 
         use_gpu, torch_dtype = get_torch_dtype(device, kwargs.get("no_half", False))
         model_kwargs = {
             "local_files_only": is_local_files_only(**kwargs),
         }
+
+        # diffusers 0.39 moved this module under pipelines.deprecated, while the
+        # model_index.json still references the old top-level module name.
+        pipelines.paint_by_example = paint_by_example
+        image_encoder = PaintByExampleImageEncoder.from_pretrained(
+            self.name,
+            subfolder="image_encoder",
+            dtype=torch_dtype,
+            local_files_only=model_kwargs["local_files_only"],
+        )
 
         if kwargs["disable_nsfw"] or kwargs.get("cpu_offload", False):
             logger.info("Disable Paint By Example Model NSFW checker")
@@ -29,8 +43,11 @@ class PaintByExample(DiffusionInpaintModel):
                 dict(safety_checker=None, requires_safety_checker=False)
             )
 
-        self.model = DiffusionPipeline.from_pretrained(
-            self.name, torch_dtype=torch_dtype, **model_kwargs
+        self.model = PaintByExamplePipeline.from_pretrained(
+            self.name,
+            image_encoder=image_encoder,
+            torch_dtype=torch_dtype,
+            **model_kwargs,
         )
         enable_low_mem(self.model, kwargs.get("low_mem", False))
 

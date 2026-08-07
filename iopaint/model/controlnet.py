@@ -154,7 +154,13 @@ class ControlNet(DiffusionInpaintModel):
             new_method,
             local_files_only=self.local_files_only,
             torch_dtype=self.torch_dtype,
-        ).to(self.model.device)
+        )
+        if hasattr(self.model, "_offload_device"):
+            from accelerate import cpu_offload
+
+            cpu_offload(controlnet, self.model._offload_device)
+        else:
+            controlnet = controlnet.to(self.model.device)
         self.model.controlnet = controlnet
 
     def _get_control_image(self, image, mask):

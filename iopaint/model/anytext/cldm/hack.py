@@ -40,7 +40,7 @@ def _hacked_clip_forward(self, text):
     def transformer_encode(t):
         if self.clip_skip > 1:
             rt = self.transformer(input_ids=t, output_hidden_states=True)
-            return self.transformer.text_model.final_layer_norm(rt.hidden_states[-self.clip_skip])
+            return self.transformer.final_layer_norm(rt.hidden_states[-self.clip_skip])
         else:
             return self.transformer(input_ids=t, output_hidden_states=False).last_hidden_state
 

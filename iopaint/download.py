@@ -35,11 +35,30 @@ def cli_download_model(model: str):
         logger.info("Done.")
     else:
         logger.info(f"Downloading model from Huggingface: {model}")
-        from diffusers import DiffusionPipeline
+        from diffusers import DiffusionPipeline, pipelines
 
-        downloaded_path = handle_from_pretrained_exceptions(
-            DiffusionPipeline.download, pretrained_model_name=model, variant="fp16"
-        )
+        if model == "Fantasy-Studio/Paint-by-Example":
+            from diffusers.pipelines.deprecated import paint_by_example
+
+            pipelines.paint_by_example = paint_by_example
+
+        try:
+            downloaded_path = handle_from_pretrained_exceptions(
+                DiffusionPipeline.download,
+                pretrained_model_name=model,
+                variant="fp16",
+            )
+        except ValueError as e:
+            if (
+                model == "kandinsky-community/kandinsky-2-2-decoder-inpaint"
+                and "no such modeling files are available" in str(e)
+            ):
+                logger.info("variant=fp16 not found, try variant=None")
+                downloaded_path = DiffusionPipeline.download(
+                    pretrained_model_name=model, variant=None
+                )
+            else:
+                raise
         logger.info(f"Done. Downloaded to {downloaded_path}")
 
 

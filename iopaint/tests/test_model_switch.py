@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 from iopaint.schema import InpaintRequest
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
@@ -7,6 +9,10 @@ os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import torch
 
 from iopaint.model_manager import ModelManager
+
+pytestmark = pytest.mark.skipif(
+    not torch.backends.mps.is_available(), reason="requires MPS"
+)
 
 
 def test_model_switch():

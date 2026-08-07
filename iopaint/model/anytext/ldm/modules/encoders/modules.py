@@ -268,8 +268,8 @@ class FrozenCLIPEmbedderT3(AbstractEncoder):
             embeddings = inputs_embeds + position_embeddings
             return embeddings
 
-        self.transformer.text_model.embeddings.forward = embedding_forward.__get__(
-            self.transformer.text_model.embeddings
+        self.transformer.embeddings.forward = embedding_forward.__get__(
+            self.transformer.embeddings
         )
 
         def encoder_forward(
@@ -295,26 +295,27 @@ class FrozenCLIPEmbedderT3(AbstractEncoder):
                 return_dict if return_dict is not None else self.config.use_return_dict
             )
             encoder_states = () if output_hidden_states else None
-            all_attentions = () if output_attentions else None
             hidden_states = inputs_embeds
+            if causal_attention_mask is not None:
+                attention_mask = (
+                    causal_attention_mask
+                    if attention_mask is None
+                    else attention_mask + causal_attention_mask
+                )
             for idx, encoder_layer in enumerate(self.layers):
                 if output_hidden_states:
                     encoder_states = encoder_states + (hidden_states,)
-                layer_outputs = encoder_layer(
+                hidden_states = encoder_layer(
                     hidden_states,
                     attention_mask,
-                    causal_attention_mask,
                     output_attentions=output_attentions,
                 )
-                hidden_states = layer_outputs[0]
-                if output_attentions:
-                    all_attentions = all_attentions + (layer_outputs[1],)
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
             return hidden_states
 
-        self.transformer.text_model.encoder.forward = encoder_forward.__get__(
-            self.transformer.text_model.encoder
+        self.transformer.encoder.forward = encoder_forward.__get__(
+            self.transformer.encoder
         )
 
         def text_encoder_forward(
@@ -370,31 +371,7 @@ class FrozenCLIPEmbedderT3(AbstractEncoder):
             last_hidden_state = self.final_layer_norm(last_hidden_state)
             return last_hidden_state
 
-        self.transformer.text_model.forward = text_encoder_forward.__get__(
-            self.transformer.text_model
-        )
-
-        def transformer_forward(
-            self,
-            input_ids=None,
-            attention_mask=None,
-            position_ids=None,
-            output_attentions=None,
-            output_hidden_states=None,
-            return_dict=None,
-            embedding_manager=None,
-        ):
-            return self.text_model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                output_attentions=output_attentions,
-                output_hidden_states=output_hidden_states,
-                return_dict=return_dict,
-                embedding_manager=embedding_manager,
-            )
-
-        self.transformer.forward = transformer_forward.__get__(self.transformer)
+        self.transformer.forward = text_encoder_forward.__get__(self.transformer)
 
     def freeze(self):
         self.transformer = self.transformer.eval()
