@@ -75,6 +75,9 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     needs: build
+    # Skipped until the owner finishes PyPI setup: set repository variable
+    # ENABLE_PYPI_PUBLISH=true after configuring the trusted publisher.
+    if: vars.ENABLE_PYPI_PUBLISH == 'true'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -109,6 +112,8 @@ jobs:
         with:
           files: dist/*
           fail_on_unmatched_files: true
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
 
   # TestPyPI dry-run variant. Configure the "testpypi" trusted publisher first,
   # temporarily disable publish-pypi for the RC tag, then uncomment this job:

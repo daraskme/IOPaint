@@ -6,6 +6,8 @@
   <img alt="Apache-2.0 license" src="https://img.shields.io/badge/license-Apache--2.0-blue" />
 </p>
 
+<p align="center">English | <a href="README_ja.md">日本語</a></p>
+
 This project is based on [Sanster/IOPaint](https://github.com/Sanster/IOPaint). The original project, model integrations, interface, and years of community work made this fork possible. This fork keeps the existing IOPaint workflow and model lineup while modernizing its Python, PyTorch, Hugging Face, frontend, packaging, and deployment stack for 2026.
 
 > **Distribution-name placeholder:** `iopaint-ng` is intentionally temporary. The owner must choose the final PyPI name before the first publish. The installed command remains `iopaint`.
@@ -25,6 +27,10 @@ This project is based on [Sanster/IOPaint](https://github.com/Sanster/IOPaint). 
 Models are downloaded on first use. Use `--model-dir` to choose the cache location or `--local-files-only` after the required weights have been cached.
 
 ## Installation
+
+### Windows — one-click launcher (easiest)
+
+Download [`IOPaint-OneClick.bat`](https://github.com/daraskme/IOpaint/raw/modernize-2026/IOPaint-OneClick.bat) and double-click it. On first run it installs uv, creates a Python environment under `%LOCALAPPDATA%\IOPaint`, detects your NVIDIA GPU (CUDA 12.8 vs CPU PyTorch), and installs the latest release wheel from GitHub. Subsequent runs start IOPaint immediately and open the browser. Uninstall by deleting `%LOCALAPPDATA%\IOPaint`.
 
 ### uv — recommended
 
