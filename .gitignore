@@ -6,7 +6,7 @@ examples/
 build
 !iopaint/app/build
 dist/
-IOPaint.egg-info/
+*.egg-info/
 venv/
 tmp/
 iopaint/web_app/

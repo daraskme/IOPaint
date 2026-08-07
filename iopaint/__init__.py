@@ -1,8 +1,11 @@
-import os
-import importlib.util
-import shutil
 import ctypes
+import importlib.util
 import logging
+import os
+import shutil
+import warnings
+
+__version__ = "2.0.0.dev0"
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 # https://github.com/pytorch/pytorch/issues/27971#issuecomment-1768868068
@@ -12,8 +15,6 @@ os.environ["LRU_CACHE_CAPACITY"] = "1"
 # https://github.com/pytorch/pytorch/issues/98688#issuecomment-1869288431
 # https://github.com/pytorch/pytorch/issues/108334#issuecomment-1752763633
 os.environ["TORCH_CUDNN_V8_API_LRU_CACHE_LIMIT"] = "1"
-
-import warnings
 
 warnings.simplefilter("ignore", UserWarning)
 

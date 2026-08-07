@@ -1,7 +1,5 @@
 import os
 
-from loguru import logger
-
 from iopaint.tests.utils import check_device, get_config, assert_equal, current_dir
 
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"

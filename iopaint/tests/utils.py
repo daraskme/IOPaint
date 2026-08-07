@@ -4,7 +4,6 @@ import pytest
 import torch
 
 from iopaint.schema import LDMSampler, HDStrategy, InpaintRequest, SDSampler
-import numpy as np
 
 current_dir = Path(__file__).parent.absolute().resolve()
 save_dir = current_dir / "result"

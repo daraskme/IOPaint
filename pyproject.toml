@@ -1,0 +1,134 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iopaint-ng"
+dynamic = ["version"]
+description = "Image inpainting, outpainting tool powered by SOTA AI Model"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [
+  { name = "PanicByte", email = "cwq1913@gmail.com" },
+]
+classifiers = [
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "torch>=2.4",
+  "torchvision",
+  "diffusers==0.39.0",
+  "transformers>=5.14,<5.15",
+  "huggingface_hub>=1.3,<2",
+  "peft>=0.17,<1",
+  "Pillow>=11,<12",
+  "numpy>=2,<3",
+  "fastapi>=0.115,<1",
+  "python-socketio>=5.16,<6",
+  "controlnet-aux==0.0.10",
+  "uvicorn[standard]",
+  "accelerate",
+  "safetensors",
+  "opencv-python",
+  "typer",
+  "typer-config",
+  "rich",
+  "loguru",
+  "yacs",
+  "omegaconf",
+  "easydict",
+  "piexif",
+  "pydantic>=2.9,<3",
+  "python-multipart",
+]
+
+[project.optional-dependencies]
+plugins = [
+  "rembg>=2.0.78",
+  "onnxruntime>=1.20",
+]
+web-config = [
+  "gradio>=6,<7",
+]
+dev = [
+  "pytest",
+  "pytest-loguru",
+  "ruff",
+  "build",
+  "twine",
+]
+
+[project.scripts]
+iopaint = "iopaint:entry_point"
+
+[project.urls]
+Homepage = "https://github.com/Sanster/IOPaint"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.dynamic]
+version = { attr = "iopaint.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["iopaint*"]
+
+[tool.setuptools.package-data]
+iopaint = [
+  "web_app/*",
+  "web_app/**/*",
+  "model/anytext/*.yaml",
+  "model/anytext/*.txt",
+  "model/anytext/**/*.yaml",
+  "model/anytext/**/*.txt",
+  "model/original_sd_configs/*.yaml",
+]
+
+[tool.ruff]
+target-version = "py310"
+extend-exclude = [
+  "iopaint/plugins/basicsr",
+  "iopaint/plugins/facexlib",
+  "iopaint/plugins/gfpgan",
+  "iopaint/plugins/segment_anything",
+  "iopaint/plugins/segment_anything2",
+  "iopaint/model/anytext",
+  "iopaint/model/brushnet",
+  "iopaint/model/power_paint",
+  "iopaint/model/original_sd_configs",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = [
+  # Existing style and compatibility findings; P1 permits unused-import fixes only.
+  "E402",
+  "E501",
+  "E701",
+  "E711",
+  "E721",
+  "E722",
+  "E731",
+  "E741",
+  "F403",
+  "F405",
+  "F541",
+  "F811",
+  "F841",
+  "I001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Package initializers intentionally re-export names; model and plugin code is P2+ scope.
+"iopaint/**/__init__.py" = ["F401"]
+"iopaint/model/**" = ["F401"]
+"iopaint/plugins/**" = ["F401"]
