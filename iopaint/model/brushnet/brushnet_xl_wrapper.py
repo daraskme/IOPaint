@@ -47,19 +47,6 @@ class BrushNetXLWrapper(DiffusionInpaintModel):
         }
         self.local_files_only = model_kwargs["local_files_only"]
 
-        disable_nsfw_checker = kwargs["disable_nsfw"] or kwargs.get(
-            "cpu_offload", False
-        )
-        if disable_nsfw_checker:
-            logger.info("Disable Stable Diffusion Model NSFW checker")
-            model_kwargs.update(
-                dict(
-                    safety_checker=None,
-                    feature_extractor=None,
-                    requires_safety_checker=False,
-                )
-            )
-
         logger.info(f"Loading BrushNet model from {self.brushnet_xl_method}")
         brushnet = BrushNetModel.from_pretrained(
             self.brushnet_xl_method, torch_dtype=torch_dtype
@@ -74,8 +61,7 @@ class BrushNetXLWrapper(DiffusionInpaintModel):
             self.model = StableDiffusionXLBrushNetPipeline.from_single_file(
                 self.model_id_or_path,
                 torch_dtype=torch_dtype,
-                load_safety_checker=not disable_nsfw_checker,
-                original_config_file=get_config_files()["v1"],
+                original_config=get_config_files()["xl"],
                 brushnet=brushnet,
                 **model_kwargs,
             )

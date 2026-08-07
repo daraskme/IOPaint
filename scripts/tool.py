@@ -83,7 +83,7 @@ class CheckpointMergerPipeline(DiffusionPipeline):
             **kwargs:
                 Supports all the default DiffusionPipeline.get_config_dict kwargs viz..
 
-                cache_dir, resume_download, force_download, proxies, local_files_only, use_auth_token, revision, torch_dtype, device_map.
+                cache_dir, force_download, local_files_only, token, revision, torch_dtype, device_map.
 
                 alpha - The interpolation parameter. Ranges from 0 to 1.  It affects the ratio in which the checkpoints are merged. A 0.8 alpha
                     would mean that the first model checkpoints would affect the final result far less than an alpha of 0.2
@@ -96,13 +96,11 @@ class CheckpointMergerPipeline(DiffusionPipeline):
         """
         # Default kwargs from DiffusionPipeline
         cache_dir = kwargs.pop("cache_dir", HF_HUB_CACHE)
-        resume_download = kwargs.pop("resume_download", False)
         force_download = kwargs.pop("force_download", False)
-        proxies = kwargs.pop("proxies", None)
         local_files_only = kwargs.pop("local_files_only", False)
-        use_auth_token = kwargs.pop("use_auth_token", None)
+        token = kwargs.pop("token", None)
         revision = kwargs.pop("revision", None)
-        torch_dtype = kwargs.pop("torch_dtype", None)
+        torch_dtype = kwargs.pop("torch_dtype", torch.float32)
         device_map = kwargs.pop("device_map", None)
 
         alpha = kwargs.pop("alpha", 0.5)
@@ -133,11 +131,9 @@ class CheckpointMergerPipeline(DiffusionPipeline):
             config_dict = DiffusionPipeline.load_config(
                 pretrained_model_name_or_path,
                 cache_dir=cache_dir,
-                resume_download=resume_download,
                 force_download=force_download,
-                proxies=proxies,
                 local_files_only=local_files_only,
-                use_auth_token=use_auth_token,
+                token=token,
                 revision=revision,
             )
             config_dicts.append(config_dict)
@@ -179,10 +175,8 @@ class CheckpointMergerPipeline(DiffusionPipeline):
                 else snapshot_download(
                     pretrained_model_name_or_path,
                     cache_dir=cache_dir,
-                    resume_download=resume_download,
-                    proxies=proxies,
                     local_files_only=local_files_only,
-                    use_auth_token=use_auth_token,
+                    token=token,
                     revision=revision,
                     allow_patterns=allow_patterns,
                     user_agent=user_agent,
@@ -262,7 +256,11 @@ class CheckpointMergerPipeline(DiffusionPipeline):
                             is_safetensors_available()
                             and checkpoint_path_1.endswith(".safetensors")
                         )
-                        else torch.load(checkpoint_path_1, map_location="cpu")
+                        else torch.load(
+                            checkpoint_path_1,
+                            map_location="cpu",
+                            weights_only=True,
+                        )
                     )
 
                     if attr in ["vae", "text_encoder"]:
@@ -280,7 +278,11 @@ class CheckpointMergerPipeline(DiffusionPipeline):
                                 is_safetensors_available()
                                 and checkpoint_path_2.endswith(".safetensors")
                             )
-                            else torch.load(checkpoint_path_2, map_location="cpu")
+                            else torch.load(
+                                checkpoint_path_2,
+                                map_location="cpu",
+                                weights_only=True,
+                            )
                         )
 
                     if not theta_0.keys() == theta_1.keys():
@@ -342,7 +344,9 @@ class CheckpointMergerPipeline(DiffusionPipeline):
         return theta0
 
 
-pipe = CheckpointMergerPipeline.from_pretrained("runwayml/stable-diffusion-inpainting")
+pipe = CheckpointMergerPipeline.from_pretrained(
+    "runwayml/stable-diffusion-inpainting", torch_dtype=torch.float32
+)
 merged_pipe = pipe.merge(
     [
         "runwayml/stable-diffusion-inpainting",

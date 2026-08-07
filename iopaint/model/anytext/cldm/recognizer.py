@@ -24,7 +24,7 @@ def min_bounding_rect(img):
     max_contour = max(contours, key=cv2.contourArea)
     rect = cv2.minAreaRect(max_contour)
     box = cv2.boxPoints(rect)
-    box = np.int0(box)
+    box = np.intp(box)
     # sort
     x_sorted = sorted(box, key=lambda x: x[0])
     left = x_sorted[:2]
@@ -85,7 +85,11 @@ def create_predictor(model_dir=None, model_lang="ch", is_onnx=False):
 
         rec_model = RecModel(rec_config)
         if model_file_path is not None:
-            rec_model.load_state_dict(torch.load(model_file_path, map_location="cpu"))
+            rec_model.load_state_dict(
+                torch.load(
+                    model_file_path, map_location="cpu", weights_only=True
+                )
+            )
             rec_model.eval()
         return rec_model.eval()
 

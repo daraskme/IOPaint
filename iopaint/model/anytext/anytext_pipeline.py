@@ -253,7 +253,7 @@ class AnyTextPipeline:
                         str_warning = f"Fail to revise position {i} to bounding rect, remain position unchanged..."
                     else:
                         rect = cv2.minAreaRect(contours[0])
-                        poly = np.int0(cv2.boxPoints(rect))
+                        poly = np.intp(cv2.boxPoints(rect))
                         pre_pos[i] = (
                             cv2.drawContours(new_pos, [poly], -1, 255, -1) / 255.0
                         )
@@ -384,7 +384,7 @@ class AnyTextPipeline:
         if min_rect:
             # get minimum enclosing rectangle
             rect = cv2.minAreaRect(max_contour)
-            poly = np.int0(cv2.boxPoints(rect))
+            poly = np.intp(cv2.boxPoints(rect))
         else:
             # get approximate polygon
             epsilon = 0.01 * cv2.arcLength(max_contour, True)

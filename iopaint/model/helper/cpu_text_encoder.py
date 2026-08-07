@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import torch
 from transformers import PreTrainedModel
 
@@ -6,8 +8,9 @@ from ..utils import torch_gc
 
 class CPUTextEncoderWrapper(PreTrainedModel):
     def __init__(self, text_encoder, torch_dtype):
-        super().__init__(text_encoder.config)
-        self.config = text_encoder.config
+        wrapper_config = deepcopy(text_encoder.config)
+        wrapper_config._attn_implementation = "eager"
+        super().__init__(wrapper_config)
         self._device = text_encoder.device
         # cpu not support float16
         self.text_encoder = text_encoder.to(torch.device("cpu"), non_blocking=True)

@@ -90,6 +90,17 @@ class RemoveBG(BasePlugin):
         output = self.remove(
             self.device, bgr_np_img, session=self.session, only_mask=True
         )
+        output = np.asarray(output, dtype=np.uint8)
+        if output.ndim == 3:
+            color_conversion = (
+                cv2.COLOR_BGRA2GRAY if output.shape[2] == 4 else cv2.COLOR_BGR2GRAY
+            )
+            output = cv2.cvtColor(output, color_conversion)
+
+            height, width = rgb_np_img.shape[:2]
+            if output.shape[1] == width and output.shape[0] % height == 0:
+                output = output.reshape(-1, height, width).max(axis=0)
+
         return output
 
     def check_dep(self):

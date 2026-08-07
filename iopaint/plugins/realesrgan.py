@@ -69,7 +69,9 @@ class RealESRGANer:
             loadnet = self.dni(model_path[0], model_path[1], dni_weight)
         else:
             # if the model_path starts with https, it will first download models to the folder: weights
-            loadnet = torch.load(model_path, map_location=torch.device("cpu"))
+            loadnet = torch.load(
+                model_path, map_location=torch.device("cpu"), weights_only=True
+            )
 
         # prefer to use params_ema
         if "params_ema" in loadnet:
@@ -88,8 +90,12 @@ class RealESRGANer:
 
         ``Paper: Deep Network Interpolation for Continuous Imagery Effect Transition``
         """
-        net_a = torch.load(net_a, map_location=torch.device(loc))
-        net_b = torch.load(net_b, map_location=torch.device(loc))
+        net_a = torch.load(
+            net_a, map_location=torch.device(loc), weights_only=True
+        )
+        net_b = torch.load(
+            net_b, map_location=torch.device(loc), weights_only=True
+        )
         for k, v_a in net_a[key].items():
             net_a[key][k] = dni_weight[0] * v_a + dni_weight[1] * net_b[key][k]
         return net_a

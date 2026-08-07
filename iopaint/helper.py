@@ -1,5 +1,4 @@
 import base64
-import imghdr
 import io
 import os
 import sys
@@ -121,7 +120,7 @@ def load_model(model: torch.nn.Module, url_or_path, device, model_md5):
 
     try:
         logger.info(f"Loading model from: {model_path}")
-        state_dict = torch.load(model_path, map_location="cpu")
+        state_dict = torch.load(model_path, map_location="cpu", weights_only=True)
         model.load_state_dict(state_dict, strict=True)
         model.to(device)
     except Exception as e:
@@ -298,10 +297,19 @@ def is_mac():
 
 
 def get_image_ext(img_bytes):
-    w = imghdr.what("", img_bytes)
-    if w is None:
-        w = "jpeg"
-    return w
+    try:
+        with Image.open(io.BytesIO(img_bytes)) as image:
+            image_format = image.format
+    except (OSError, ValueError):
+        return "jpeg"
+
+    return {
+        "JPEG": "jpeg",
+        "PNG": "png",
+        "GIF": "gif",
+        "WEBP": "webp",
+        "BMP": "bmp",
+    }.get(image_format, "jpeg")
 
 
 def decode_base64_to_image(

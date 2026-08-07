@@ -27,6 +27,8 @@ from torchvision.models import (
 
 
 class Config:
+    model_type = "birefnet"
+
     def __init__(self) -> None:
         # PATH settings
         self.sys_home_dir = os.path.expanduser(
@@ -1817,7 +1819,9 @@ def build_backbone(bb_name, pretrained=True, params_settings=""):
 
 
 def load_weights(model, model_name):
-    save_model = torch.load(config.weights[model_name], map_location="cpu")
+    save_model = torch.load(
+        config.weights[model_name], map_location="cpu", weights_only=True
+    )
     model_dict = model.state_dict()
     state_dict = {
         k: v if v.size() == model_dict[k].size() else model_dict[k]
@@ -2440,6 +2444,7 @@ class BiRefNet(PreTrainedModel):
         print(1)
         bb_pretrained = config.bb_pretrained
         self.config = Config()
+        self.all_tied_weights_keys = {}
         self.epoch = 1
         self.bb = build_backbone(self.config.bb, pretrained=bb_pretrained)
 
@@ -2922,7 +2927,7 @@ class SimpleConvs(nn.Module):
 
 
 def create_briarmbg2_session():
-    birefnet = BiRefNet.from_pretrained("briaai/RMBG-2.0")
+    birefnet = BiRefNet.from_pretrained("briaai/RMBG-2.0", dtype=torch.float32)
     return birefnet
 
 

@@ -69,6 +69,11 @@ class PowerPaintV2(DiffusionInpaintModel):
         )
 
         if self.model_info.is_single_file_diffusers:
+            model_kwargs.update(
+                safety_checker=None,
+                feature_extractor=None,
+                requires_safety_checker=False,
+            )
             if self.model_info.model_type == ModelType.DIFFUSERS_SD:
                 model_kwargs["num_in_channels"] = 4
             else:
@@ -77,8 +82,7 @@ class PowerPaintV2(DiffusionInpaintModel):
             pipe = StableDiffusionPowerPaintBrushNetPipeline.from_single_file(
                 self.model_id_or_path,
                 torch_dtype=torch_dtype,
-                load_safety_checker=False,
-                original_config_file=get_config_files()["v1"],
+                original_config=get_config_files()["v1"],
                 brushnet=brushnet,
                 text_encoder_brushnet=text_encoder_brushnet,
                 **model_kwargs,

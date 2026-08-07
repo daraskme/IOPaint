@@ -8,6 +8,7 @@ from .helper.cpu_text_encoder import CPUTextEncoderWrapper
 from .original_sd_configs import get_config_files
 from .utils import (
     handle_from_pretrained_exceptions,
+    get_sd_safety_checker_components,
     get_torch_dtype,
     enable_low_mem,
     is_local_files_only,
@@ -43,6 +44,15 @@ class SD(DiffusionInpaintModel):
             )
 
         if self.model_info.is_single_file_diffusers:
+            if (
+                not disable_nsfw_checker
+                and model_kwargs.get("safety_checker") is None
+            ):
+                model_kwargs.update(
+                    get_sd_safety_checker_components(
+                        torch_dtype, model_kwargs["local_files_only"]
+                    )
+                )
             if self.model_info.model_type == ModelType.DIFFUSERS_SD:
                 model_kwargs["num_in_channels"] = 4
             else:
@@ -51,8 +61,7 @@ class SD(DiffusionInpaintModel):
             self.model = StableDiffusionInpaintPipeline.from_single_file(
                 self.model_id_or_path,
                 torch_dtype=torch_dtype,
-                load_safety_checker=not disable_nsfw_checker,
-                original_config_file=get_config_files()['v1'],
+                original_config=get_config_files()["v1"],
                 **model_kwargs,
             )
         else:

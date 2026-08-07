@@ -17,6 +17,7 @@ from .original_sd_configs import get_config_files
 from .utils import (
     get_scheduler,
     handle_from_pretrained_exceptions,
+    get_sd_safety_checker_components,
     get_torch_dtype,
     enable_low_mem,
     is_local_files_only,
@@ -55,23 +56,10 @@ class ControlNet(DiffusionInpaintModel):
         }
         self.local_files_only = model_kwargs["local_files_only"]
 
-        disable_nsfw_checker = kwargs["disable_nsfw"] or kwargs.get(
-            "cpu_offload", False
-        )
-        if disable_nsfw_checker:
-            logger.info("Disable Stable Diffusion Model NSFW checker")
-            model_kwargs.update(
-                dict(
-                    safety_checker=None,
-                    feature_extractor=None,
-                    requires_safety_checker=False,
-                )
-            )
-
         use_gpu, torch_dtype = get_torch_dtype(device, kwargs.get("no_half", False))
         self.torch_dtype = torch_dtype
 
-        original_config_file_name = "v1"
+        original_config_name = "v1"
         if model_info.model_type in [
             ModelType.DIFFUSERS_SD,
             ModelType.DIFFUSERS_SD_INPAINT,
@@ -80,7 +68,8 @@ class ControlNet(DiffusionInpaintModel):
                 StableDiffusionControlNetInpaintPipeline as PipeClass,
             )
 
-            original_config_file_name = "v1"
+            original_config_name = "v1"
+            supports_safety_checker = True
 
         elif model_info.model_type in [
             ModelType.DIFFUSERS_SDXL,
@@ -90,7 +79,21 @@ class ControlNet(DiffusionInpaintModel):
                 StableDiffusionXLControlNetInpaintPipeline as PipeClass,
             )
 
-            original_config_file_name = "xl"
+            original_config_name = "xl"
+            supports_safety_checker = False
+
+        disable_nsfw_checker = kwargs["disable_nsfw"] or kwargs.get(
+            "cpu_offload", False
+        )
+        if supports_safety_checker and disable_nsfw_checker:
+            logger.info("Disable Stable Diffusion Model NSFW checker")
+            model_kwargs.update(
+                dict(
+                    safety_checker=None,
+                    feature_extractor=None,
+                    requires_safety_checker=False,
+                )
+            )
 
         controlnet = ControlNetModel.from_pretrained(
             pretrained_model_name_or_path=controlnet_method,
@@ -98,6 +101,16 @@ class ControlNet(DiffusionInpaintModel):
             torch_dtype=self.torch_dtype,
         )
         if model_info.is_single_file_diffusers:
+            if (
+                supports_safety_checker
+                and not disable_nsfw_checker
+                and model_kwargs.get("safety_checker") is None
+            ):
+                model_kwargs.update(
+                    get_sd_safety_checker_components(
+                        torch_dtype, model_kwargs["local_files_only"]
+                    )
+                )
             if self.model_info.model_type == ModelType.DIFFUSERS_SD:
                 model_kwargs["num_in_channels"] = 4
             else:
@@ -106,9 +119,8 @@ class ControlNet(DiffusionInpaintModel):
             self.model = PipeClass.from_single_file(
                 model_info.path,
                 controlnet=controlnet,
-                load_safety_checker=not disable_nsfw_checker,
                 torch_dtype=torch_dtype,
-                original_config_file=get_config_files()[original_config_file_name],
+                original_config=get_config_files()[original_config_name],
                 **model_kwargs,
             )
         else:

@@ -928,4 +928,4 @@ def zero_module(module):
 
 if __name__ == "__main__":
     BrushNetModel.from_pretrained("/Users/cwq/data/models/brushnet/brushnet_random_mask", variant='fp16',
-                                  use_safetensors=True)
+                                  use_safetensors=True, torch_dtype=torch.float16)

@@ -34,11 +34,16 @@ def assert_keys(keys: List[str], infos, res_infos):
 def run_test(file_path, keys):
     infos, res_infos, res_pil_bytes = extra_info(file_path)
     assert_keys(keys, infos, res_infos)
-    with tempfile.NamedTemporaryFile("wb", suffix=file_path.suffix) as temp_file:
+    with tempfile.NamedTemporaryFile(
+        "wb", suffix=file_path.suffix, delete=False
+    ) as temp_file:
         temp_file.write(res_pil_bytes)
-        temp_file.flush()
-        infos, res_infos, res_pil_bytes = extra_info(Path(temp_file.name))
+        temp_path = Path(temp_file.name)
+    try:
+        infos, res_infos, res_pil_bytes = extra_info(temp_path)
         assert_keys(keys, infos, res_infos)
+    finally:
+        temp_path.unlink()
 
 
 def test_png_icc_profile_png():

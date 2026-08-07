@@ -1,7 +1,6 @@
 import gc
 import math
 import random
-import traceback
 from typing import Any
 
 import torch
@@ -24,6 +23,13 @@ from diffusers import (
     HeunDiscreteScheduler,
 )
 from loguru import logger
+from huggingface_hub.errors import (
+    GatedRepoError,
+    HfHubHTTPError,
+    LocalEntryNotFoundError,
+    RepositoryNotFoundError,
+    RevisionNotFoundError,
+)
 
 from iopaint.schema import SDSampler
 from torch import conv2d, conv_transpose2d
@@ -977,6 +983,51 @@ def is_local_files_only(**kwargs) -> bool:
     return HF_HUB_OFFLINE or kwargs.get("local_files_only", False)
 
 
+def get_sd_safety_checker_components(torch_dtype, local_files_only: bool):
+    from diffusers.pipelines.stable_diffusion.safety_checker import (
+        StableDiffusionSafetyChecker,
+    )
+    from transformers import CLIPImageProcessor
+
+    model_id = "CompVis/stable-diffusion-safety-checker"
+    safety_checker = StableDiffusionSafetyChecker.from_pretrained(
+        model_id,
+        dtype=torch_dtype,
+        local_files_only=local_files_only,
+    )
+    feature_extractor = CLIPImageProcessor.from_pretrained(
+        model_id,
+        local_files_only=local_files_only,
+    )
+    if safety_checker is None:
+        raise RuntimeError("NSFW filtering was enabled but no safety checker was loaded")
+    return {
+        "safety_checker": safety_checker,
+        "feature_extractor": feature_extractor,
+        "requires_safety_checker": True,
+    }
+
+
+def _find_hf_hub_error(error: BaseException):
+    current = error
+    seen = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(
+            current,
+            (
+                GatedRepoError,
+                RepositoryNotFoundError,
+                RevisionNotFoundError,
+                LocalEntryNotFoundError,
+                HfHubHTTPError,
+            ),
+        ):
+            return current
+        current = current.__cause__ or current.__context__
+    return None
+
+
 def handle_from_pretrained_exceptions(func, **kwargs):
     try:
         return func(**kwargs)
@@ -990,20 +1041,20 @@ def handle_from_pretrained_exceptions(func, **kwargs):
                 return func(**{**kwargs, "variant": None, "revision": "main"})
         raise e
     except OSError as e:
-        previous_traceback = traceback.format_exc()
-        if "RevisionNotFoundError: 404 Client Error." in previous_traceback:
+        hub_error = _find_hf_hub_error(e)
+        if isinstance(hub_error, RevisionNotFoundError):
             logger.info("revision=fp16 not found, try revision=main")
             return func(**{**kwargs, "variant": None, "revision": "main"})
-        elif "Max retries exceeded" in previous_traceback:
+        if isinstance(hub_error, (GatedRepoError, RepositoryNotFoundError)):
+            raise
+        if isinstance(hub_error, LocalEntryNotFoundError):
             logger.exception(
-                "Fetching model from HuggingFace failed. "
-                "If this is your first time downloading the model, you may need to set up proxy in terminal."
-                "If the model has already been downloaded, you can add --local-files-only when starting."
+                "The requested Hugging Face model is not available in the local cache. "
+                "Check connectivity or start with --local-files-only after downloading it."
             )
-            exit(-1)
-        raise e
-    except Exception as e:
-        raise e
+        elif isinstance(hub_error, HfHubHTTPError):
+            logger.exception("Fetching the model from Hugging Face failed")
+        raise
 
 
 def get_torch_dtype(device, no_half: bool):

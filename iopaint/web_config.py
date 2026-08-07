@@ -22,7 +22,6 @@ os.environ["GRADIO_ANALYTICS_ENABLED"] = "False"
 from datetime import datetime
 from json import JSONDecodeError
 
-import gradio as gr
 from iopaint.download import scan_models
 from loguru import logger
 
@@ -140,6 +139,14 @@ def change_current_model(new_model):
 
 
 def main(config_file: Path):
+    try:
+        import gradio as gr
+    except ImportError as exc:
+        raise RuntimeError(
+            "Web config requires Gradio. Install it with: "
+            "pip install iopaint-ng[web-config]"
+        ) from exc
+
     global _config_file
     _config_file = config_file
 
@@ -325,4 +332,4 @@ def main(config_file: Path):
             ],
             message,
         )
-    demo.launch(inbrowser=True, show_api=False)
+    demo.launch(inbrowser=True, footer_links=["gradio", "settings"])

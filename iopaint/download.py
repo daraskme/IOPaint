@@ -4,6 +4,8 @@ import os
 from functools import lru_cache
 from typing import List, Optional
 
+import torch
+
 from iopaint.schema import ModelType, ModelInfo
 from loguru import logger
 from pathlib import Path
@@ -56,9 +58,12 @@ def get_sd_model_type(model_abs_path: str) -> Optional[ModelType]:
         try:
             StableDiffusionInpaintPipeline.from_single_file(
                 model_abs_path,
-                load_safety_checker=False,
+                torch_dtype=torch.float32,
+                safety_checker=None,
+                feature_extractor=None,
+                requires_safety_checker=False,
                 num_in_channels=9,
-                original_config_file=get_config_files()["v1"],
+                original_config=get_config_files()["v1"],
             )
             model_type = ModelType.DIFFUSERS_SD_INPAINT
         except ValueError as e:
@@ -84,9 +89,9 @@ def get_sdxl_model_type(model_abs_path: str) -> Optional[ModelType]:
         try:
             model = StableDiffusionXLInpaintPipeline.from_single_file(
                 model_abs_path,
-                load_safety_checker=False,
+                torch_dtype=torch.float32,
                 num_in_channels=9,
-                original_config_file=get_config_files()["xl"],
+                original_config=get_config_files()["xl"],
             )
             if model.unet.config.in_channels == 9:
                 # https://github.com/huggingface/diffusers/issues/6610

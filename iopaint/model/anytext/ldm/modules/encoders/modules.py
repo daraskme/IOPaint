@@ -96,7 +96,9 @@ class FrozenT5Embedder(AbstractEncoder):
     ):  # others are google/t5-v1_1-xl and google/t5-v1_1-xxl
         super().__init__()
         self.tokenizer = T5Tokenizer.from_pretrained(version)
-        self.transformer = T5EncoderModel.from_pretrained(version)
+        self.transformer = T5EncoderModel.from_pretrained(
+            version, dtype=torch.float32
+        )
         self.device = device
         self.max_length = max_length  # TODO: typical value?
         if freeze:
@@ -145,7 +147,9 @@ class FrozenCLIPEmbedder(AbstractEncoder):
         super().__init__()
         assert layer in self.LAYERS
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
-        self.transformer = CLIPTextModel.from_pretrained(version)
+        self.transformer = CLIPTextModel.from_pretrained(
+            version, dtype=torch.float32
+        )
         self.device = device
         self.max_length = max_length
         if freeze:
@@ -229,9 +233,13 @@ class FrozenCLIPEmbedderT3(AbstractEncoder):
     ):
         super().__init__()
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
-        self.transformer = CLIPTextModel.from_pretrained(version)
+        self.transformer = CLIPTextModel.from_pretrained(
+            version, dtype=torch.float32
+        )
         if use_vision:
-            self.vit = CLIPVisionModelWithProjection.from_pretrained(version)
+            self.vit = CLIPVisionModelWithProjection.from_pretrained(
+                version, dtype=torch.float32
+            )
             self.processor = AutoProcessor.from_pretrained(version)
         self.device = device
         self.max_length = max_length
