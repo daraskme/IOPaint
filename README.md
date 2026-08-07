@@ -189,7 +189,7 @@ If `--mask` points to one file, that mask is applied to every input image. If it
 ## Development
 
 ```bash
-git clone <FORK_REPO_URL_PLACEHOLDER>
+git clone https://github.com/daraskme/IOpaint.git
 cd IOpaint
 
 uv venv --python 3.12

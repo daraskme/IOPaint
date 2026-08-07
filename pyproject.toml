@@ -70,8 +70,7 @@ dev = [
 iopaint = "iopaint:entry_point"
 
 [project.urls]
-# TODO(owner): replace <FORK_REPO_URL_PLACEHOLDER> before the first publish.
-Homepage = "https://github.com/<FORK_REPO_URL_PLACEHOLDER>"
+Homepage = "https://github.com/daraskme/IOpaint"
 Upstream = "https://github.com/Sanster/IOPaint"
 
 [tool.setuptools]
