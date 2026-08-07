@@ -53,6 +53,7 @@ from iopaint.schema import (
     SwitchModelRequest,
     InpaintRequest,
     RunPluginRequest,
+    RunSegmentByTextRequest,
     SDSampler,
     PluginInfo,
     AdjustMaskRequest,
@@ -167,6 +168,7 @@ class Api:
         self.add_api_route("/api/v1/inpaint", self.api_inpaint, methods=["POST"])
         self.add_api_route("/api/v1/switch_plugin_model", self.api_switch_plugin_model, methods=["POST"])
         self.add_api_route("/api/v1/run_plugin_gen_mask", self.api_run_plugin_gen_mask, methods=["POST"])
+        self.add_api_route("/api/v1/segment_by_text", self.api_segment_by_text, methods=["POST"])
         self.add_api_route("/api/v1/run_plugin_gen_image", self.api_run_plugin_gen_image, methods=["POST"])
         self.add_api_route("/api/v1/samplers", self.api_samplers, methods=["GET"])
         self.add_api_route("/api/v1/adjust_mask", self.api_adjust_mask, methods=["POST"])
@@ -344,6 +346,34 @@ class Api:
         res_mask = gen_frontend_mask(bgr_or_gray_mask)
         return Response(
             content=numpy_to_bytes(res_mask, "png"),
+            media_type="image/png",
+        )
+
+    def api_segment_by_text(self, req: RunSegmentByTextRequest):
+        if req.name != InteractiveSeg.name:
+            raise HTTPException(
+                status_code=400,
+                detail="Text segmentation only supports the InteractiveSeg plugin.",
+            )
+        plugin = self.plugins.get(InteractiveSeg.name)
+        if plugin is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Enable the interactive segmentation plugin with sam3 first.",
+            )
+        if not plugin.model_name.startswith("sam3"):
+            raise HTTPException(
+                status_code=400,
+                detail="Text segmentation requires the interactive segmentation model sam3.",
+            )
+
+        rgb_np_img, _, _, _ = decode_base64_to_image(req.image)
+        mask = plugin.gen_mask_by_text(
+            rgb_np_img, req.prompt, req.score_threshold
+        )
+        torch_gc()
+        return Response(
+            content=numpy_to_bytes(gen_frontend_mask(mask), "png"),
             media_type="image/png",
         )
 

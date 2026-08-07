@@ -191,6 +191,8 @@ class InteractiveSegModel(Choices):
     sam2_1_base = "sam2_1_base"
     sam2_1_large = "sam2_1_large"
 
+    sam3 = "sam3"
+
 
 class PluginInfo(BaseModel):
     name: str
@@ -455,6 +457,13 @@ class RunPluginRequest(BaseModel):
         [], description="Clicks for interactive seg, [[x,y,0/1], [x2,y2,0/1]]"
     )
     scale: float = Field(2.0, description="Scale for upscaling")
+
+
+class RunSegmentByTextRequest(BaseModel):
+    name: str
+    image: str = Field(..., description="base64 encoded image")
+    prompt: str
+    score_threshold: float = Field(0.5, ge=0.0, le=1.0)
 
 
 MediaTab = Literal["input", "output", "mask"]

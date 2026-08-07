@@ -9,6 +9,7 @@ from iopaint.tests.utils import check_device, current_dir, save_dir
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 import cv2
+import numpy as np
 import pytest
 
 from iopaint.plugins import (
@@ -116,6 +117,8 @@ def test_restoreformer(device):
 @pytest.mark.parametrize("device", ["cuda", "cpu", "mps"])
 def test_segment_anything(name, device):
     check_device(device)
+    if name.startswith("sam3") and device != "cuda":
+        pytest.skip("SAM3 plugin tests require CUDA")
     model = InteractiveSeg(name, device)
     new_mask = model.gen_mask(
         rgb_img,
@@ -128,3 +131,14 @@ def test_segment_anything(name, device):
 
     save_name = f"test_segment_anything_{name}_{device}.png"
     _save(new_mask, save_name)
+
+
+def test_segment_by_text():
+    check_device("cuda")
+    model = InteractiveSeg("sam3", "cuda")
+    new_mask = model.gen_mask_by_text(rgb_img, "rabbit", 0.5)
+
+    assert new_mask.shape == rgb_img.shape[:2]
+    assert new_mask.dtype == np.uint8
+    assert np.any(new_mask)
+    _save(new_mask, "test_segment_by_text_sam3_cuda.png")

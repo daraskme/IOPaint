@@ -3,7 +3,9 @@ from typing import List
 
 import numpy as np
 import torch
+from huggingface_hub.errors import GatedRepoError
 from loguru import logger
+from transformers import Sam3Model, Sam3Processor, Sam3TrackerModel, Sam3TrackerProcessor
 
 from iopaint.helper import download_model
 from iopaint.plugins.base_plugin import BasePlugin
@@ -77,6 +79,23 @@ SEGMENT_ANYTHING_MODELS = {
     },
 }
 
+# facebook/sam3.1 ships only a raw multiplex checkpoint incompatible with
+# Transformers as of 2026-08, so it is intentionally not offered here.
+SAM3_MODELS = {"sam3": "facebook/sam3"}
+
+
+def _raise_sam3_access_error(error: BaseException, repo_id: str):
+    current = error
+    seen = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, GatedRepoError):
+            raise RuntimeError(
+                f"{repo_id} is gated. Accept its license on Hugging Face, then run "
+                "`hf auth login` and retry."
+            ) from error
+        current = current.__cause__ or current.__context__
+
 
 class InteractiveSeg(BasePlugin):
     name = "InteractiveSeg"
@@ -89,6 +108,30 @@ class InteractiveSeg(BasePlugin):
         self._init_session(model_name)
 
     def _init_session(self, model_name: str):
+        self.predictor = None
+        self.sam3_tracker = None
+        self.sam3_tracker_processor = None
+        self.sam3_image_embeddings = None
+        self.sam3_original_sizes = None
+        self.sam3_model = None
+        self.sam3_processor = None
+
+        if model_name.startswith("sam3"):
+            self.sam3_repo_id = SAM3_MODELS[model_name]
+            try:
+                self.sam3_tracker_processor = Sam3TrackerProcessor.from_pretrained(
+                    self.sam3_repo_id
+                )
+                self.sam3_tracker = Sam3TrackerModel.from_pretrained(
+                    self.sam3_repo_id, dtype=torch.float32
+                ).to(self.device)
+                self.sam3_tracker.eval()
+            except Exception as error:
+                _raise_sam3_access_error(error, self.sam3_repo_id)
+                raise
+            self.prev_img_md5 = None
+            return
+
         model_path = download_model(
             SEGMENT_ANYTHING_MODELS[model_name]["url"],
             SEGMENT_ANYTHING_MODELS[model_name]["md5"],
@@ -133,6 +176,37 @@ class InteractiveSeg(BasePlugin):
             input_point.append([x, y])
             input_label.append(click[2])
 
+        if self.model_name.startswith("sam3"):
+            if img_md5 and img_md5 != self.prev_img_md5:
+                image_inputs = self.sam3_tracker_processor(
+                    images=rgb_np_img, return_tensors="pt"
+                )
+                pixel_values = image_inputs["pixel_values"].to(
+                    device=self.device, dtype=torch.float32
+                )
+                self.sam3_image_embeddings = self.sam3_tracker.get_image_embeddings(
+                    pixel_values
+                )
+                self.sam3_original_sizes = image_inputs["original_sizes"]
+                self.prev_img_md5 = img_md5
+
+            prompt_inputs = self.sam3_tracker_processor(
+                original_sizes=self.sam3_original_sizes,
+                input_points=[[input_point]],
+                input_labels=[[input_label]],
+                return_tensors="pt",
+            )
+            outputs = self.sam3_tracker(
+                image_embeddings=self.sam3_image_embeddings,
+                input_points=prompt_inputs["input_points"].to(self.device),
+                input_labels=prompt_inputs["input_labels"].to(self.device),
+                multimask_output=False,
+            )
+            masks = self.sam3_tracker_processor.post_process_masks(
+                outputs.pred_masks, prompt_inputs["original_sizes"]
+            )
+            return masks[0][0][0].cpu().numpy().astype(np.uint8) * 255
+
         if img_md5 and img_md5 != self.prev_img_md5:
             self.prev_img_md5 = img_md5
             self.predictor.set_image(rgb_np_img)
@@ -144,3 +218,42 @@ class InteractiveSeg(BasePlugin):
         )
         mask = masks[0].astype(np.uint8) * 255
         return mask
+
+    @torch.inference_mode()
+    def gen_mask_by_text(
+        self, rgb_np_img: np.ndarray, prompt: str, score_threshold: float
+    ) -> np.ndarray:
+        if not self.model_name.startswith("sam3"):
+            raise ValueError("Text segmentation requires the sam3 model")
+
+        if self.sam3_model is None:
+            try:
+                self.sam3_processor = Sam3Processor.from_pretrained(self.sam3_repo_id)
+                self.sam3_model = Sam3Model.from_pretrained(
+                    self.sam3_repo_id, dtype=torch.float32
+                ).to(self.device)
+                self.sam3_model.eval()
+            except Exception as error:
+                _raise_sam3_access_error(error, self.sam3_repo_id)
+                raise
+
+        inputs = self.sam3_processor(
+            images=rgb_np_img, text=prompt, return_tensors="pt"
+        )
+        outputs = self.sam3_model(
+            pixel_values=inputs["pixel_values"].to(
+                device=self.device, dtype=torch.float32
+            ),
+            input_ids=inputs["input_ids"].to(self.device),
+            attention_mask=inputs["attention_mask"].to(self.device),
+        )
+        result = self.sam3_processor.post_process_instance_segmentation(
+            outputs,
+            threshold=score_threshold,
+            target_sizes=[rgb_np_img.shape[:2]],
+        )[0]
+        if len(result["masks"]) == 0:
+            return np.zeros(rgb_np_img.shape[:2], dtype=np.uint8)
+        return (
+            result["masks"].bool().any(dim=0).cpu().numpy().astype(np.uint8) * 255
+        )
