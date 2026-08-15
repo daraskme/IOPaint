@@ -94,6 +94,17 @@ LOCAL_FILES_ONLY_HELP = """
 When loading diffusion models, using local files only, not connect to HuggingFace server.
 """
 
+DARASK_PLUGIN_MODE_HELP = """
+Restricted mode for use as a darask-paint plugin backend: only exposes GET /api/v1/health
+and POST /api/v1/inpaint (no web UI, no websocket, no CORS, no model switching APIs,
+no OpenAPI/docs routes). The model is hard-locked to DARASK_PLUGIN_MODE_MODEL ("lama"),
+and inpaint requests are serialized. Requires --host 127.0.0.1 (or localhost).
+"""
+
+# darask-paint (docs/SPEC.md §55.2) only ever drives IOpaint through LaMa; plugin
+# mode refuses to start with any other --model, and re-checks this at request time.
+DARASK_PLUGIN_MODE_MODEL = "lama"
+
 DEFAULT_MODEL_DIR = os.path.abspath(
     os.getenv("XDG_CACHE_HOME", os.path.join(os.path.expanduser("~"), ".cache"))
 )

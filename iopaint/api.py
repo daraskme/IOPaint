@@ -3,8 +3,10 @@ import os
 import threading
 import time
 import traceback
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Optional, Dict, List
+from urllib.parse import urlparse
 
 import cv2
 import numpy as np
@@ -31,6 +33,8 @@ from fastapi.staticfiles import StaticFiles
 from loguru import logger
 from socketio import AsyncServer
 
+from iopaint import __version__
+from iopaint.const import DARASK_PLUGIN_MODE_MODEL
 from iopaint.file_manager import FileManager
 from iopaint.helper import (
     load_img,
@@ -49,6 +53,7 @@ from iopaint.plugins.remove_bg import RemoveBG
 from iopaint.schema import (
     GenInfoResponse,
     ApiConfig,
+    DaraskPluginInpaintRequest,
     ServerConfigResponse,
     SwitchModelRequest,
     InpaintRequest,
@@ -64,11 +69,35 @@ from iopaint.schema import (
     RealESRGANModel,
 )
 
+# Routes FastAPI would otherwise auto-register (Swagger UI, ReDoc, the raw
+# OpenAPI schema, and Swagger's OAuth2 redirect target). cli.py already
+# constructs the plugin-mode FastAPI() with docs_url/redoc_url/openapi_url
+# unset so these are never added in the first place; this set is used as a
+# defense-in-depth sweep in case Api is ever handed an app that didn't do
+# that.
+DARASK_PLUGIN_MODE_BLOCKED_PATHS = {
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/docs/oauth2-redirect",
+}
+
+# darask-paint only ever talks to 127.0.0.1; anything else in the Host
+# header (DNS rebinding) or a cross-origin Origin header is refused outright.
+DARASK_PLUGIN_MODE_LOOPBACK_HOSTNAMES = {"127.0.0.1", "localhost"}
+
+
+def _darask_hostname_of(host_header: str) -> str:
+    value = host_header.strip()
+    if value.startswith("["):  # bracketed IPv6, e.g. "[::1]:8423"
+        return value[1:].split("]", 1)[0].lower()
+    return value.split(":", 1)[0].lower()
+
 CURRENT_DIR = Path(__file__).parent.absolute().resolve()
 WEB_APP_DIR = CURRENT_DIR / "web_app"
 
 
-def api_middleware(app: FastAPI):
+def api_middleware(app: FastAPI, enable_cors: bool = True):
     rich_available = False
     try:
         if os.environ.get("WEBUI_RICH_EXCEPTIONS", None) is not None:
@@ -123,14 +152,15 @@ def api_middleware(app: FastAPI):
     async def http_exception_handler(request: Request, e: HTTPException):
         return handle_exception(request, e)
 
-    cors_options = {
-        "allow_methods": ["*"],
-        "allow_headers": ["*"],
-        "allow_origins": ["*"],
-        "allow_credentials": True,
-        "expose_headers": ["X-Seed"],
-    }
-    app.add_middleware(CORSMiddleware, **cors_options)
+    if enable_cors:
+        cors_options = {
+            "allow_methods": ["*"],
+            "allow_headers": ["*"],
+            "allow_origins": ["*"],
+            "allow_credentials": True,
+            "expose_headers": ["X-Seed"],
+        }
+        app.add_middleware(CORSMiddleware, **cors_options)
 
 
 global_sio: AsyncServer = None
@@ -152,6 +182,11 @@ class Api:
         self.config = config
         self.router = APIRouter()
         self.queue_lock = threading.Lock()
+
+        if config.darask_plugin_mode:
+            self._init_darask_plugin_mode()
+            return
+
         api_middleware(self.app)
 
         self.file_manager = self._build_file_manager()
@@ -181,6 +216,111 @@ class Api:
         self.combined_asgi_app = socketio.ASGIApp(self.sio, self.app)
         self.app.mount("/ws", self.combined_asgi_app)
         global_sio = self.sio
+
+    def _init_darask_plugin_mode(self):
+        """darask-paint plugin mode (docs/SPEC.md §55 in the darask-paint repo).
+
+        Only GET /api/v1/health and POST /api/v1/inpaint are registered: no web UI
+        (StaticFiles mount), no websocket/socketio, no CORS middleware, no OpenAPI
+        docs routes, no model switching or other plugin/file-manager routes. The
+        model is hard-locked to DARASK_PLUGIN_MODE_MODEL, inpaint calls are
+        serialized through darask_inpaint_lock, and every request is checked
+        against Host/Origin to guard against DNS rebinding from a browser tab.
+        """
+        if self.config.host not in ("127.0.0.1", "localhost"):
+            # Defense in depth: `iopaint start` already refuses to launch with a
+            # non-local host before constructing the FastAPI app / Api instance.
+            raise RuntimeError(
+                "--darask-plugin-mode requires --host 127.0.0.1 (or localhost), "
+                f"got: {self.config.host}"
+            )
+        if self.config.model != DARASK_PLUGIN_MODE_MODEL:
+            # Defense in depth: `iopaint start` already refuses to launch with
+            # any other --model before constructing the FastAPI app / Api
+            # instance.
+            raise RuntimeError(
+                f"--darask-plugin-mode requires --model {DARASK_PLUGIN_MODE_MODEL}, "
+                f"got: {self.config.model}"
+            )
+
+        # Keep the structured-JSON exception handling (so callers always get a
+        # predictable {"error", "detail", ...} body on failure) but drop the
+        # permissive allow-all-origins CORS registration.
+        api_middleware(self.app, enable_cors=False)
+
+        # Defense-in-depth: strip any Swagger/ReDoc/OpenAPI routes that may
+        # already be registered on `app` (cli.py constructs FastAPI() with
+        # docs_url=None/redoc_url=None/openapi_url=None in plugin mode, so
+        # normally there is nothing here to strip).
+        self.app.router.routes = [
+            route
+            for route in self.app.router.routes
+            if getattr(route, "path", None) not in DARASK_PLUGIN_MODE_BLOCKED_PATHS
+        ]
+
+        self._darask_install_security_guard()
+
+        self.file_manager = None
+        self.plugins = {}
+        self.sio = None
+        self.combined_asgi_app = self.app
+        self.darask_inpaint_lock = threading.Lock()
+        self._darask_backend_status = "starting"
+
+        self.model_manager = self._build_model_manager()
+        self._darask_backend_status = "ready"
+
+        # fmt: off
+        self.add_api_route("/api/v1/health", self.api_darask_health, methods=["GET"])
+        self.add_api_route("/api/v1/inpaint", self.api_darask_inpaint, methods=["POST"])
+        # fmt: on
+
+    def _darask_install_security_guard(self):
+        """Reject requests that don't look like they came from darask-paint
+        itself: a non-loopback Host header (DNS rebinding: a public DNS name
+        that resolves to 127.0.0.1, used to bypass same-origin protections a
+        browser would otherwise apply) or a cross-origin Origin header (a
+        browser tab on some other site trying to reach this local server).
+        darask-paint's own HTTP client never sends an Origin header at all,
+        so this only ever blocks browser-style requests.
+        """
+
+        @self.app.middleware("http")
+        async def darask_security_guard(request: Request, call_next):
+            host_header = request.headers.get("host", "")
+            if (
+                _darask_hostname_of(host_header)
+                not in DARASK_PLUGIN_MODE_LOOPBACK_HOSTNAMES
+            ):
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": "InvalidHost",
+                        "detail": f"Host header not allowed in plugin mode: {host_header!r}",
+                    },
+                )
+
+            origin = request.headers.get("origin")
+            if origin is not None:
+                if urlparse(origin).hostname not in DARASK_PLUGIN_MODE_LOOPBACK_HOSTNAMES:
+                    return JSONResponse(
+                        status_code=403,
+                        content={
+                            "error": "Forbidden",
+                            "detail": f"Origin not allowed in plugin mode: {origin!r}",
+                        },
+                    )
+
+            return await call_next(request)
+
+    def api_darask_health(self):
+        return {
+            "plugin": "darask-iopaint",
+            "api": 1,
+            "engine": __version__,
+            "backend": self._darask_backend_status,
+            "model": self.model_manager.name,
+        }
 
     def add_api_route(self, path: str, endpoint, **kwargs):
         return self.app.add_api_route(path, endpoint, **kwargs)
@@ -271,33 +411,79 @@ class Api:
         return GenInfoResponse(prompt=prompt, negative_prompt=negative_prompt)
 
     def api_inpaint(self, req: InpaintRequest):
-        image, alpha_channel, infos, ext = decode_base64_to_image(req.image)
-        mask, _, _, _ = decode_base64_to_image(req.mask, gray=True)
-        logger.info(f"image ext: {ext}")
+        """Normal-mode inpaint: unrestricted request surface, unchanged
+        behavior from before --darask-plugin-mode existed."""
+        return self._run_inpaint(req, plugin_mode=False)
 
-        mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)[1]
-        if image.shape[:2] != mask.shape[:2]:
+    def api_darask_inpaint(self, req: DaraskPluginInpaintRequest):
+        """Plugin-mode inpaint: narrow request surface (image/mask only,
+        extra fields rejected by the schema) with explicit 400s for
+        missing/null/undecodable input instead of a bare 422 or 500."""
+        if not req.image or not req.mask:
             raise HTTPException(
-                400,
-                detail=f"Image size({image.shape[:2]}) and mask size({mask.shape[:2]}) not match.",
+                status_code=400,
+                detail="Both 'image' and 'mask' are required and must be non-empty.",
+            )
+        full_req = InpaintRequest(image=req.image, mask=req.mask)
+        return self._run_inpaint(full_req, plugin_mode=True)
+
+    def _run_inpaint(self, req: InpaintRequest, *, plugin_mode: bool):
+        if plugin_mode:
+            # Defense in depth: no route exists to change the model in plugin
+            # mode, but verify it wasn't mutated some other way before
+            # running. If this ever fires it means the fixed-model invariant
+            # checked at startup no longer holds, which is a server-side
+            # problem the caller can't fix by retrying with different input.
+            if self.model_manager.name != DARASK_PLUGIN_MODE_MODEL:
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        f"Plugin backend model unavailable: expected the fixed "
+                        f"'{DARASK_PLUGIN_MODE_MODEL}' model, server has "
+                        f"'{self.model_manager.name}' loaded. Restart the plugin."
+                    ),
+                )
+            inpaint_lock = self.darask_inpaint_lock
+        else:
+            inpaint_lock = nullcontext()
+
+        with inpaint_lock:
+            try:
+                image, alpha_channel, infos, ext = decode_base64_to_image(req.image)
+                mask, _, _, _ = decode_base64_to_image(req.mask, gray=True)
+            except Exception as e:
+                if plugin_mode:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Could not decode image/mask: {e}",
+                    )
+                raise
+            logger.info(f"image ext: {ext}")
+
+            mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)[1]
+            if image.shape[:2] != mask.shape[:2]:
+                raise HTTPException(
+                    400,
+                    detail=f"Image size({image.shape[:2]}) and mask size({mask.shape[:2]}) not match.",
+                )
+
+            start = time.time()
+            rgb_np_img = self.model_manager(image, mask, req)
+            logger.info(f"process time: {(time.time() - start) * 1000:.2f}ms")
+            torch_gc()
+
+            rgb_np_img = cv2.cvtColor(rgb_np_img.astype(np.uint8), cv2.COLOR_BGR2RGB)
+            rgb_res = concat_alpha_channel(rgb_np_img, alpha_channel)
+
+            res_img_bytes = pil_to_bytes(
+                Image.fromarray(rgb_res),
+                ext=ext,
+                quality=self.config.quality,
+                infos=infos,
             )
 
-        start = time.time()
-        rgb_np_img = self.model_manager(image, mask, req)
-        logger.info(f"process time: {(time.time() - start) * 1000:.2f}ms")
-        torch_gc()
-
-        rgb_np_img = cv2.cvtColor(rgb_np_img.astype(np.uint8), cv2.COLOR_BGR2RGB)
-        rgb_res = concat_alpha_channel(rgb_np_img, alpha_channel)
-
-        res_img_bytes = pil_to_bytes(
-            Image.fromarray(rgb_res),
-            ext=ext,
-            quality=self.config.quality,
-            infos=infos,
-        )
-
-        asyncio.run(self.sio.emit("diffusion_finish"))
+            if self.sio is not None:
+                asyncio.run(self.sio.emit("diffusion_finish"))
 
         return Response(
             content=res_img_bytes,

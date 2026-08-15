@@ -168,12 +168,26 @@ def start(
     gfpgan_device: Device = Option(Device.cpu),
     enable_restoreformer: bool = Option(False),
     restoreformer_device: Device = Option(Device.cpu),
+    darask_plugin_mode: bool = Option(False, "--darask-plugin-mode", help=DARASK_PLUGIN_MODE_HELP),
 ):
     dump_environment_info()
     device = check_device(device)
     remove_bg_device = check_device(remove_bg_device)
     realesrgan_device = check_device(realesrgan_device)
     gfpgan_device = check_device(gfpgan_device)
+
+    if darask_plugin_mode and host not in ("127.0.0.1", "localhost"):
+        logger.error(
+            f"invalid --host for --darask-plugin-mode: {host} "
+            "(plugin mode only accepts 127.0.0.1 or localhost)"
+        )
+        exit(-1)
+    if darask_plugin_mode and model != DARASK_PLUGIN_MODE_MODEL:
+        logger.error(
+            f"invalid --model for --darask-plugin-mode: {model} "
+            f"(plugin mode is hard-locked to '{DARASK_PLUGIN_MODE_MODEL}')"
+        )
+        exit(-1)
 
     if input and not input.exists():
         logger.error(f"invalid --input: {input} not exists")
@@ -217,7 +231,12 @@ def start(
             webbrowser.open(f"http://localhost:{port}", new=0, autoraise=True)
         yield
 
-    app = FastAPI(lifespan=lifespan)
+    if darask_plugin_mode:
+        # No OpenAPI/Swagger/ReDoc surface (and therefore no /docs,
+        # /redoc, /openapi.json, /docs/oauth2-redirect routes either).
+        app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    else:
+        app = FastAPI(lifespan=lifespan)
 
     api_config = ApiConfig(
         host=host,
@@ -249,6 +268,7 @@ def start(
         gfpgan_device=gfpgan_device,
         enable_restoreformer=enable_restoreformer,
         restoreformer_device=restoreformer_device,
+        darask_plugin_mode=darask_plugin_mode,
     )
     print(api_config.model_dump_json(indent=4))
     api = Api(app, api_config)

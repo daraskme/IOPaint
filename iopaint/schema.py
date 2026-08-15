@@ -16,7 +16,7 @@ from iopaint.const import (
     SD_BRUSHNET_CHOICES,
     SDXL_BRUSHNET_CHOICES
 )
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
 class ModelType(str, Enum):
@@ -282,6 +282,24 @@ class ApiConfig(BaseModel):
     gfpgan_device: Device
     enable_restoreformer: bool
     restoreformer_device: Device
+    darask_plugin_mode: bool = False
+
+
+class DaraskPluginInpaintRequest(BaseModel):
+    """POST /api/v1/inpaint body accepted in --darask-plugin-mode.
+
+    Deliberately narrower than InpaintRequest: darask-paint always drives a
+    fixed LaMa model, so the whole sd_*/ldm_*/controlnet_*/etc. tuning
+    surface is meaningless here and is rejected outright (extra="forbid")
+    rather than silently ignored. image/mask are optional at the schema
+    level (not required) so that a missing/null value is *our* 400 to
+    raise (see Api.api_darask_inpaint), not FastAPI's default 422.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    image: Optional[str] = Field(None, description="base64 encoded image")
+    mask: Optional[str] = Field(None, description="base64 encoded mask")
 
 
 class InpaintRequest(BaseModel):
