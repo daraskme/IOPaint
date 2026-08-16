@@ -44,6 +44,7 @@ jobs:
 
       - name: Install CPU PyTorch
         run: >-
+          python -m pip install typing_extensions &&
           python -m pip install torch torchvision
           --index-url https://download.pytorch.org/whl/cpu
 
@@ -85,6 +86,7 @@ jobs:
         shell: bash
         run: |
           python -m venv .wheel-venv
+          .wheel-venv/bin/python -m pip install typing_extensions
           .wheel-venv/bin/python -m pip install torch torchvision \
             --index-url https://download.pytorch.org/whl/cpu
           .wheel-venv/bin/python -m pip install dist/*.whl
@@ -95,6 +97,7 @@ jobs:
         shell: pwsh
         run: |
           python -m venv .wheel-venv
+          & .wheel-venv\Scripts\python.exe -m pip install typing_extensions
           & .wheel-venv\Scripts\python.exe -m pip install torch torchvision `
             --index-url https://download.pytorch.org/whl/cpu
           $wheel = (Get-ChildItem -Path dist -Filter *.whl -File).FullName
